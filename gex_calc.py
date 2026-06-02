@@ -6,7 +6,34 @@ from datetime import datetime
 
 
 def fetch_chain(ticker: str) -> tuple:
-    raise NotImplementedError
+    stock = yf.Ticker(ticker)
+    spot = stock.fast_info.last_price
+
+    if spot is None:
+        spot = stock.info.get('regularMarketPrice')
+    if spot is None:
+        spot = stock.history(period='1d')['Close'].iloc[-1]
+
+    expirations = stock.options[:4]  # next 3-4 expirations
+    if not expirations:
+        raise ValueError(f"No options expirations found for {ticker}")
+
+    frames = []
+    for exp in expirations:
+        chain = stock.option_chain(exp)
+
+        calls = chain.calls[['strike', 'openInterest', 'impliedVolatility']].copy()
+        calls['type'] = 'call'
+
+        puts = chain.puts[['strike', 'openInterest', 'impliedVolatility']].copy()
+        puts['type'] = 'put'
+
+        combined = pd.concat([calls, puts], ignore_index=True)
+        combined['expiration'] = exp
+        frames.append(combined)
+
+    df = pd.concat(frames, ignore_index=True)
+    return df, float(spot)
 
 
 def calculate_gex(df: pd.DataFrame, spot: float, r: float = 0.05) -> pd.DataFrame:
@@ -116,7 +143,14 @@ def print_levels(ticker: str, levels: dict) -> None:
 
 
 def main():
-    raise NotImplementedError
+    for ticker in ["SPY", "QQQ"]:
+        try:
+            df, spot = fetch_chain(ticker)
+            df = calculate_gex(df, spot)
+            levels = find_levels(df, spot)
+            print_levels(ticker, levels)
+        except Exception as e:
+            print(f"\n[ERROR] {ticker}: {e}")
 
 
 if __name__ == "__main__":
