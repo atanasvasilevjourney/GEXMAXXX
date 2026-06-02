@@ -132,7 +132,7 @@ def print_levels(ticker: str, levels: dict) -> None:
     gex_sign = '+' if gex_b >= 0 else ''
 
     print(f"\n{'=' * width}")
-    print(f"  {ticker} GEX LEVELS  — {date_str}")
+    print(f"  {ticker} GEX LEVELS  -- {date_str}")
     print(f"{'=' * width}")
     print(f"  Spot         :  {spot:>8.2f}")
     print(f"  Call Wall    :{fmt_strike(levels['call_wall'])}")
