@@ -88,7 +88,31 @@ def find_levels(df: pd.DataFrame, spot: float) -> dict:
 
 
 def print_levels(ticker: str, levels: dict) -> None:
-    raise NotImplementedError
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    spot = levels['spot']
+    width = 37
+
+    def fmt_strike(val) -> str:
+        if val is None:
+            return '  N/A'
+        pct = (val - spot) / spot * 100
+        sign = '+' if pct >= 0 else ''
+        return f"  {val:>8.2f}   ({sign}{pct:.2f}%)"
+
+    gex_b = levels['total_gex'] / 1e9
+    gex_sign = '+' if gex_b >= 0 else ''
+
+    print(f"\n{'=' * width}")
+    print(f"  {ticker} GEX LEVELS  — {date_str}")
+    print(f"{'=' * width}")
+    print(f"  Spot         :{spot:>10.2f}")
+    print(f"  Call Wall    :{fmt_strike(levels['call_wall'])}")
+    print(f"  Put Wall     :{fmt_strike(levels['put_wall'])}")
+    print(f"  Gamma Flip   :{fmt_strike(levels['gamma_flip'])}")
+    print(f"  HVL          :{fmt_strike(levels['hvl'])}")
+    print(f"  Total GEX    :  {gex_sign}${gex_b:.2f}B")
+    print(f"  Regime       :  {levels['regime']}")
+    print(f"{'=' * width}")
 
 
 def main():

@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import pandas as pd
 import numpy as np
-from gex_calc import calculate_gex, find_levels
+from gex_calc import calculate_gex, find_levels, print_levels
 
 
 def make_chain():
@@ -116,3 +116,49 @@ def test_find_levels_no_puts_below_spot():
     df = calculate_gex(df, SPOT)
     levels = find_levels(df, SPOT)
     assert levels['put_wall'] is None
+
+
+def test_print_levels_contains_ticker(capsys):
+    levels = {
+        'spot': SPOT, 'call_wall': 545.0, 'put_wall': 535.0,
+        'gamma_flip': 538.0, 'hvl': 530.0,
+        'total_gex': 4.21e9, 'regime': 'POSITIVE (low vol)'
+    }
+    print_levels('SPY', levels)
+    captured = capsys.readouterr()
+    assert 'SPY' in captured.out
+
+
+def test_print_levels_none_safe(capsys):
+    """Must not raise when call_wall or put_wall is None."""
+    levels = {
+        'spot': SPOT, 'call_wall': None, 'put_wall': None,
+        'gamma_flip': 538.0, 'hvl': 530.0,
+        'total_gex': -1.5e9, 'regime': 'NEGATIVE (high vol)'
+    }
+    print_levels('QQQ', levels)
+    captured = capsys.readouterr()
+    assert 'N/A' in captured.out
+    assert 'QQQ' in captured.out
+
+
+def test_print_levels_shows_regime(capsys):
+    levels = {
+        'spot': SPOT, 'call_wall': 545.0, 'put_wall': 535.0,
+        'gamma_flip': 538.0, 'hvl': 530.0,
+        'total_gex': 2e9, 'regime': 'POSITIVE (low vol)'
+    }
+    print_levels('SPY', levels)
+    captured = capsys.readouterr()
+    assert 'POSITIVE' in captured.out
+
+
+def test_print_levels_shows_gex_in_billions(capsys):
+    levels = {
+        'spot': SPOT, 'call_wall': 545.0, 'put_wall': 535.0,
+        'gamma_flip': 538.0, 'hvl': 530.0,
+        'total_gex': 4210000000.0, 'regime': 'POSITIVE (low vol)'
+    }
+    print_levels('SPY', levels)
+    captured = capsys.readouterr()
+    assert '4.21' in captured.out
