@@ -144,15 +144,59 @@ def print_levels(ticker: str, levels: dict) -> None:
     print(f"{'=' * width}")
 
 
+def fetch_nq_price() -> float:
+    """Fetch current NQ front-month futures price."""
+    nq = yf.Ticker("NQ=F")
+    price = nq.fast_info.last_price
+    if price is None:
+        price = nq.info.get('regularMarketPrice')
+    if price is None:
+        price = nq.history(period='1d')['Close'].iloc[-1]
+    return float(price)
+
+
+def print_nq_conversion(levels: dict, nq_multiplier: float) -> None:
+    """Print NQ equivalent levels derived from QQQ GEX levels."""
+    width = 37
+
+    def to_nq(val) -> str:
+        if val is None:
+            return '  N/A'
+        return f"  {val * nq_multiplier:>8.0f}"
+
+    nq_spot = levels['spot'] * nq_multiplier
+    print(f"\n{'=' * width}")
+    print(f"  NQ EQUIVALENT  (QQQ x {nq_multiplier:.2f})")
+    print(f"{'=' * width}")
+    print(f"  NQ Spot      :  {nq_spot:>8.0f}")
+    print(f"  NQ Call Wall :{to_nq(levels['call_wall'])}")
+    print(f"  NQ Put Wall  :{to_nq(levels['put_wall'])}")
+    print(f"  NQ Flip      :{to_nq(levels['gamma_flip'])}")
+    print(f"  NQ HVL       :{to_nq(levels['hvl'])}")
+    print(f"{'=' * width}")
+
+
 def main():
+    qqq_levels = None
+
     for ticker in ["SPY", "QQQ"]:
         try:
             df, spot = fetch_chain(ticker)
             df = calculate_gex(df, spot)
             levels = find_levels(df, spot)
             print_levels(ticker, levels)
+            if ticker == "QQQ":
+                qqq_levels = levels
         except Exception as e:
             print(f"\n[ERROR] {ticker}: {e}")
+
+    if qqq_levels is not None:
+        try:
+            nq_price = fetch_nq_price()
+            nq_multiplier = nq_price / qqq_levels['spot']
+            print_nq_conversion(qqq_levels, nq_multiplier)
+        except Exception as e:
+            print(f"\n[ERROR] NQ conversion: {e}")
 
 
 if __name__ == "__main__":
