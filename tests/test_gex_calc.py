@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import pandas as pd
 import numpy as np
-from gex_calc import calculate_gex, find_levels, print_levels
+from gex_calc import calculate_gex
 
 
 def make_chain():

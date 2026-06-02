@@ -28,7 +28,7 @@ def calculate_gex(df: pd.DataFrame, spot: float, r: float = 0.05) -> pd.DataFram
     # Analytical gamma
     df['gamma'] = norm.pdf(d1) / (spot * df['iv'] * np.sqrt(df['T']))
 
-    # GEX per option
+    # GEX per option: * 100 (contract multiplier) * spot^2 * 0.01 (per-1%-move convention)
     df['gex'] = df['gamma'] * df['openInterest'] * 100 * spot ** 2 * 0.01
 
     # Puts subtract from GEX (dealers are long puts = negative exposure)
