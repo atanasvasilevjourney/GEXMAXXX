@@ -95,7 +95,9 @@ def find_levels(df: pd.DataFrame, spot: float) -> dict:
     # Find the first strike where cumulative GEX changes sign (the actual flip)
     sign_changes = by_strike[by_strike['cum_gex'].shift(1) * by_strike['cum_gex'] < 0]
     if len(sign_changes) > 0:
-        gamma_flip = float(sign_changes.iloc[0]['strike'])
+        # Pick the sign change closest to spot (not the lowest-strike one)
+        idx = (sign_changes['strike'] - spot).abs().idxmin()
+        gamma_flip = float(sign_changes.loc[idx, 'strike'])
     else:
         # No sign change in chain: use strike closest to zero cumulative GEX as fallback
         gamma_flip = float(by_strike.loc[by_strike['cum_gex'].abs().idxmin(), 'strike'])
