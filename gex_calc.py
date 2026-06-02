@@ -63,18 +63,24 @@ def find_levels(df: pd.DataFrame, spot: float) -> dict:
     # HVL: strike with most negative GEX on entire chain
     hvl = by_strike.loc[by_strike['gex'].idxmin(), 'strike']
 
-    # Gamma Flip: cumulative GEX crosses zero (strike closest to the sign change)
+    # Gamma Flip: cumulative GEX crosses zero (the actual flip)
     by_strike['cum_gex'] = by_strike['gex'].cumsum()
-    gamma_flip = by_strike.loc[by_strike['cum_gex'].abs().idxmin(), 'strike']
+    # Find the first strike where cumulative GEX changes sign (the actual flip)
+    sign_changes = by_strike[by_strike['cum_gex'].shift(1) * by_strike['cum_gex'] < 0]
+    if len(sign_changes) > 0:
+        gamma_flip = float(sign_changes.iloc[0]['strike'])
+    else:
+        # No sign change in chain: use strike closest to zero cumulative GEX as fallback
+        gamma_flip = float(by_strike.loc[by_strike['cum_gex'].abs().idxmin(), 'strike'])
 
     total_gex = float(df['gex'].sum())
     regime = 'POSITIVE (low vol)' if total_gex > 0 else 'NEGATIVE (high vol)'
 
     return {
         'spot': spot,
-        'call_wall': call_wall,
-        'put_wall': put_wall,
-        'gamma_flip': float(gamma_flip),
+        'call_wall': float(call_wall) if call_wall is not None else None,
+        'put_wall': float(put_wall) if put_wall is not None else None,
+        'gamma_flip': gamma_flip,
         'hvl': float(hvl),
         'total_gex': total_gex,
         'regime': regime,

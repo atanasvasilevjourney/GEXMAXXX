@@ -106,3 +106,13 @@ def test_find_levels_no_calls_above_spot():
     df = calculate_gex(df, SPOT)
     levels = find_levels(df, SPOT)
     assert levels['call_wall'] is None
+
+
+def test_find_levels_no_puts_below_spot():
+    """put_wall should be None when no puts exist below spot."""
+    df = pd.DataFrame([
+        {'strike': 550.0, 'type': 'call', 'openInterest': 5000, 'impliedVolatility': 0.20, 'expiration': '2026-06-20'},
+    ])
+    df = calculate_gex(df, SPOT)
+    levels = find_levels(df, SPOT)
+    assert levels['put_wall'] is None
