@@ -14,7 +14,7 @@ def fetch_chain(ticker: str) -> tuple:
     if spot is None:
         spot = stock.history(period='1d')['Close'].iloc[-1]
 
-    expirations = stock.options[:4]  # next 3-4 expirations
+    expirations = stock.options[:4]  # nearest 4 expirations
     if not expirations:
         raise ValueError(f"No options expirations found for {ticker}")
 
