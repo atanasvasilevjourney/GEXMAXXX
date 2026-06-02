@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import pandas as pd
 import numpy as np
-from gex_calc import calculate_gex
+from gex_calc import calculate_gex, find_levels
 
 
 def make_chain():
@@ -54,3 +54,55 @@ def test_calculate_gex_adds_columns():
     result = calculate_gex(df, SPOT)
     assert 'gamma' in result.columns
     assert 'gex' in result.columns
+
+
+def test_find_levels_call_wall_above_spot():
+    df = calculate_gex(make_chain(), SPOT)
+    levels = find_levels(df, SPOT)
+    assert levels['call_wall'] > SPOT, f"Call wall {levels['call_wall']} must be above spot {SPOT}"
+
+
+def test_find_levels_put_wall_below_spot():
+    df = calculate_gex(make_chain(), SPOT)
+    levels = find_levels(df, SPOT)
+    assert levels['put_wall'] < SPOT, f"Put wall {levels['put_wall']} must be below spot {SPOT}"
+
+
+def test_find_levels_returns_all_keys():
+    df = calculate_gex(make_chain(), SPOT)
+    levels = find_levels(df, SPOT)
+    required_keys = ('spot', 'call_wall', 'put_wall', 'gamma_flip', 'hvl', 'total_gex', 'regime')
+    for key in required_keys:
+        assert key in levels, f"Missing key: {key}"
+
+
+def test_find_levels_regime_positive():
+    """With more call OI than put OI, total GEX should be positive."""
+    df = pd.DataFrame([
+        {'strike': 545.0, 'type': 'call', 'openInterest': 50000, 'impliedVolatility': 0.20, 'expiration': '2026-06-20'},
+        {'strike': 530.0, 'type': 'put',  'openInterest': 1000,  'impliedVolatility': 0.20, 'expiration': '2026-06-20'},
+    ])
+    df = calculate_gex(df, SPOT)
+    levels = find_levels(df, SPOT)
+    assert levels['regime'] == 'POSITIVE (low vol)'
+
+
+def test_find_levels_regime_negative():
+    """With heavy put OI, total GEX should be negative."""
+    df = pd.DataFrame([
+        {'strike': 545.0, 'type': 'call', 'openInterest': 100,   'impliedVolatility': 0.20, 'expiration': '2026-06-20'},
+        {'strike': 530.0, 'type': 'put',  'openInterest': 50000, 'impliedVolatility': 0.20, 'expiration': '2026-06-20'},
+    ])
+    df = calculate_gex(df, SPOT)
+    levels = find_levels(df, SPOT)
+    assert levels['regime'] == 'NEGATIVE (high vol)'
+
+
+def test_find_levels_no_calls_above_spot():
+    """call_wall should be None when no calls exist above spot."""
+    df = pd.DataFrame([
+        {'strike': 530.0, 'type': 'put', 'openInterest': 5000, 'impliedVolatility': 0.20, 'expiration': '2026-06-20'},
+    ])
+    df = calculate_gex(df, SPOT)
+    levels = find_levels(df, SPOT)
+    assert levels['call_wall'] is None
