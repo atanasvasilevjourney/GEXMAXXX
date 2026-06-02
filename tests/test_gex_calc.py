@@ -150,7 +150,7 @@ def test_print_levels_shows_regime(capsys):
     }
     print_levels('SPY', levels)
     captured = capsys.readouterr()
-    assert 'POSITIVE' in captured.out
+    assert 'POSITIVE (low vol)' in captured.out
 
 
 def test_print_levels_shows_gex_in_billions(capsys):
