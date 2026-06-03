@@ -3,8 +3,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import pandas as pd
-from level_projection import Level, FutLevel, select_levels
-# measure_basis, project added in Task 3
+from level_projection import Level, FutLevel, select_levels, measure_basis, project
 
 BY_STRIKE = pd.DataFrame([
     {'strike': 5100.0, 'gex': -150.0, 'vex': 0.0, 'chex': 0.0},
@@ -101,3 +100,44 @@ def test_select_levels_no_call_wall():
     labels = [lv.label for lv in levels]
     assert 'call_wall' not in labels
     assert 'put_wall' in labels  # other Tier-1 still present
+
+
+def test_measure_basis():
+    assert measure_basis(5320.0, 5300.0) == pytest.approx(20.0)
+
+
+def test_measure_basis_negative():
+    assert measure_basis(5280.0, 5300.0) == pytest.approx(-20.0)
+
+
+def test_project_shifts_by_basis():
+    """Every FutLevel.fut_price == source_strike + basis_pts."""
+    levels = select_levels(SNAPSHOT, pct_threshold=0.30)
+    basis = 25.0
+    fut_levels = project(levels, basis)
+    for fl in fut_levels:
+        assert fl.fut_price == pytest.approx(fl.source_strike + basis)
+
+
+def test_project_preserves_tier_strength_label():
+    """tier, strength, label unchanged after projection."""
+    levels = select_levels(SNAPSHOT, pct_threshold=0.30)
+    fut_levels = project(levels, basis_pts=20.0)
+    for orig, proj in zip(
+        sorted(levels, key=lambda l: l.strike),
+        sorted(fut_levels, key=lambda f: f.source_strike),
+    ):
+        assert proj.tier == orig.tier
+        assert proj.strength == pytest.approx(orig.strength)
+        assert proj.label == orig.label
+
+
+def test_project_stores_source_and_basis():
+    """source_strike and basis_pts stored correctly on each FutLevel."""
+    levels = select_levels(SNAPSHOT, pct_threshold=0.30)
+    basis = 42.5
+    fut_levels = project(levels, basis_pts=basis)
+    orig_strikes = {lv.strike for lv in levels}
+    for fl in fut_levels:
+        assert fl.source_strike in orig_strikes
+        assert fl.basis_pts == pytest.approx(basis)
