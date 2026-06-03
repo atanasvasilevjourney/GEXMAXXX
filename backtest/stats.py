@@ -26,16 +26,16 @@ def compute_stats(trades: list[TradeRecord], oos_start_pct: float = 0.70) -> Bac
     is_trades  = [t for t in trades if t.entry_bar <= oos_cutoff]
     oos_trades = [t for t in trades if t.entry_bar >  oos_cutoff]
 
-    # All trades by regime
+    # All trades by regime (for trade counts)
     pos_trades = [t for t in trades if t.regime_at_entry == 'positive']
     neg_trades = [t for t in trades if t.regime_at_entry == 'negative']
 
-    # In-sample trades by regime (for sharpe calculation)
+    # In-sample trades by regime (for PnL sums and sharpe calculation)
     pos_is = [t for t in is_trades if t.regime_at_entry == 'positive']
     neg_is = [t for t in is_trades if t.regime_at_entry == 'negative']
 
-    pos_pnl = sum(t.pnl_pts for t in pos_trades)
-    neg_pnl = sum(t.pnl_pts for t in neg_trades)
+    pos_pnl = sum(t.pnl_pts for t in pos_is)
+    neg_pnl = sum(t.pnl_pts for t in neg_is)
 
     pos_sharpe = _sharpe([t.pnl_pts for t in pos_is])
     neg_sharpe = _sharpe([t.pnl_pts for t in neg_is])

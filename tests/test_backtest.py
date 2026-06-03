@@ -67,7 +67,8 @@ def test_compute_stats_separates_regime_pnl():
                     entry_price=100.0, exit_price=105.0, pnl_pts=-5.0,
                     regime_at_entry='negative', level_tier=1, level_strength=0.8),
     ]
-    result = compute_stats(trades)
+    # Use oos_start_pct=1.0 so all trades are in-sample (cutoff will be >= max_bar)
+    result = compute_stats(trades, oos_start_pct=1.0)
     assert result.positive_regime_pnl == pytest.approx(10.0)
     assert result.negative_regime_pnl == pytest.approx(-5.0)
     assert result.positive_regime_trades == 1
