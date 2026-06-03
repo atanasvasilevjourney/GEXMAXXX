@@ -36,6 +36,8 @@ def replay(
         action = sm.on_tick(tick, regime, fut_levels)
 
         if action in (Action.ENTER_LONG, Action.ENTER_SHORT):
+            if open_trade is not None:
+                raise RuntimeError(f"Re-entry at bar {i} without prior EXIT — state machine bug")
             open_trade = {
                 'entry_bar':      i,
                 'entry_price':    tick.price,
@@ -45,7 +47,9 @@ def replay(
                 'level_strength': sm.position.level_strength,
             }
 
-        elif action == Action.EXIT and open_trade is not None:
+        elif action == Action.EXIT:
+            if open_trade is None:
+                raise RuntimeError(f"EXIT at bar {i} with no open trade — state machine bug")
             direction   = open_trade['direction']
             entry_price = open_trade['entry_price']
             exit_price  = tick.price
