@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEX Report -- {{ date_str }}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0f1117; color: #e2e8f0; font-family: Consolas, Monaco, 'Courier New', monospace; padding: 24px; font-size: 13px; }
+h1 { font-size: 12px; color: #475569; margin-bottom: 20px; letter-spacing: 3px; text-transform: uppercase; }
+
+.symbol-section { background: #131620; border: 1px solid #252840; border-radius: 8px; margin-bottom: 28px; overflow: hidden; }
+
+.symbol-header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; background: #1a1d2e; border-bottom: 1px solid #252840; }
+.symbol-name { font-size: 22px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.5px; }
+.date-lbl { font-size: 11px; color: #475569; }
+.badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 3px; letter-spacing: 0.5px; text-transform: uppercase; }
+.badge-src { background: #0f2847; color: #60a5fa; border: 1px solid #1e4080; }
+.badge-pos { background: #0a2e1a; color: #4ade80; border: 1px solid #166534; }
+.badge-neg { background: #2e0a0a; color: #f87171; border: 1px solid #7f1d1d; }
+
+.error-card { padding: 20px; color: #f87171; }
+
+.levels-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+.levels-col { padding: 16px 20px; border-right: 1px solid #252840; }
+.levels-col:last-child { border-right: none; }
+.col-title { font-size: 10px; color: #475569; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; font-weight: 700; }
+.lrow { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #1a1d2e; }
+.lrow:last-child { border-bottom: none; }
+.lkey { color: #64748b; font-size: 12px; }
+.lval { font-weight: 700; font-size: 12px; color: #f1f5f9; }
+.lval.g { color: #4ade80; }
+.lval.r { color: #f87171; }
+.lval.y { color: #fbbf24; }
+.lval.b { color: #60a5fa; }
+.no-data { color: #334155; font-size: 11px; padding: 8px 0; font-style: italic; }
+
+.totals-bar { display: flex; gap: 24px; padding: 10px 20px; background: #0f1117; border-top: 1px solid #252840; border-bottom: 1px solid #252840; }
+.total-item { font-size: 11px; color: #475569; }
+.total-item b { color: #94a3b8; margin-left: 6px; font-weight: 700; }
+
+.charts { padding: 20px; }
+.chart-block { margin-bottom: 24px; }
+.chart-title { font-size: 10px; color: #475569; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; font-weight: 700; }
+.chart-wrap { position: relative; height: 160px; }
+</style>
+</head>
+<body>
+
+<h1>GEX Ultimate Report -- {{ date_str }}</h1>
+
+{% for ticker in ['SPY', 'QQQ'] %}
+{% if ticker in results %}
+{% set d = results[ticker] %}
+<div class="symbol-section">
+
+  {% if d.get('error') %}
+  <div class="symbol-header">
+    <span class="symbol-name">{{ ticker }}</span>
+    <span class="badge badge-src">error</span>
+  </div>
+  <div class="error-card">{{ d['error'] }}</div>
+
+  {% else %}
+  {% set all = d['all'] %}
+  {% set dte0 = d['0dte'] %}
+  {% set fut = d.get('futures', {}) %}
+
+  <div class="symbol-header">
+    <span class="symbol-name">{{ ticker }}</span>
+    <span class="date-lbl">{{ date_str }}</span>
+    <span class="badge badge-src">{{ d.get('source', 'yfinance') }}</span>
+    <span class="badge {{ 'badge-pos' if 'POSITIVE' in all['regime'] else 'badge-neg' }}">{{ all['regime'] }}</span>
+  </div>
+
+  <div class="levels-grid">
+
+    <!-- ALL CHAIN -->
+    <div class="levels-col">
+      <div class="col-title">All Chain</div>
+      <div class="lrow"><span class="lkey">Spot</span><span class="lval">{{ "%.2f" | format(all['spot']) }}</span></div>
+      <div class="lrow"><span class="lkey">Call Wall</span><span class="lval g">{{ "%.0f" | format(all['call_wall']) if all['call_wall'] else 'N/A' }}</span></div>
+      <div class="lrow"><span class="lkey">Put Wall</span><span class="lval r">{{ "%.0f" | format(all['put_wall']) if all['put_wall'] else 'N/A' }}</span></div>
+      <div class="lrow"><span class="lkey">Gamma Flip</span><span class="lval y">{{ "%.0f" | format(all['gamma_flip']) }}</span></div>
+      <div class="lrow"><span class="lkey">HVL</span><span class="lval r">{{ "%.0f" | format(all['hvl']) }}</span></div>
+      <div class="lrow"><span class="lkey">Vanna Wall</span><span class="lval b">{{ "%.0f" | format(all['vanna_wall']) }}</span></div>
+      <div class="lrow"><span class="lkey">Charm Wall</span><span class="lval b">{{ "%.0f" | format(all['charm_wall']) }}</span></div>
+    </div>
+
+    <!-- 0DTE -->
+    <div class="levels-col">
+      <div class="col-title">0DTE Only</div>
+      {% if dte0 %}
+      <div class="lrow"><span class="lkey">Spot</span><span class="lval">{{ "%.2f" | format(dte0['spot']) }}</span></div>
+      <div class="lrow"><span class="lkey">Call Wall</span><span class="lval g">{{ "%.0f" | format(dte0['call_wall']) if dte0['call_wall'] else 'N/A' }}</span></div>
+      <div class="lrow"><span class="lkey">Put Wall</span><span class="lval r">{{ "%.0f" | format(dte0['put_wall']) if dte0['put_wall'] else 'N/A' }}</span></div>
+      <div class="lrow"><span class="lkey">Gamma Flip</span><span class="lval y">{{ "%.0f" | format(dte0['gamma_flip']) }}</span></div>
+      <div class="lrow"><span class="lkey">HVL</span><span class="lval r">{{ "%.0f" | format(dte0['hvl']) }}</span></div>
+      {% else %}
+      <div class="no-data">No 0DTE options today</div>
+      {% endif %}
+    </div>
+
+    <!-- FUTURES -->
+    <div class="levels-col">
+      <div class="col-title">{{ fut.get('symbol', 'Futures') }} Equivalent</div>
+      {% if fut.get('error') %}
+      <div class="no-data">{{ fut['error'] }}</div>
+      {% elif fut.get('price') %}
+      <div class="lrow"><span class="lkey">{{ fut['symbol'] }} Spot</span><span class="lval">{{ fut['spot'] }}</span></div>
+      <div class="lrow"><span class="lkey">Call Wall</span><span class="lval g">{{ fut.get('call_wall', 'N/A') }}</span></div>
+      <div class="lrow"><span class="lkey">Put Wall</span><span class="lval r">{{ fut.get('put_wall', 'N/A') }}</span></div>
+      <div class="lrow"><span class="lkey">Gamma Flip</span><span class="lval y">{{ fut.get('gamma_flip', 'N/A') }}</span></div>
+      <div class="lrow"><span class="lkey">HVL</span><span class="lval r">{{ fut.get('hvl', 'N/A') }}</span></div>
+      <div class="lrow"><span class="lkey">Multiplier</span><span class="lval">{{ fut['multiplier'] }}x</span></div>
+      {% else %}
+      <div class="no-data">N/A</div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <div class="totals-bar">
+    <div class="total-item">Total GEX<b>{{ ('+$%.2fB' | format(all['total_gex'] / 1e9)) if all['total_gex'] >= 0 else ('-$%.2fB' | format(all['total_gex'] | abs / 1e9)) }}</b></div>
+    <div class="total-item">Total VEX<b>{{ ('+$%.2fB' | format(all['total_vex'] / 1e9)) if all['total_vex'] >= 0 else ('-$%.2fB' | format(all['total_vex'] | abs / 1e9)) }}</b></div>
+    <div class="total-item">Total CHEX<b>{{ ('+%.0fM' | format(all['total_chex'] / 1e6)) if all['total_chex'] >= 0 else ('%.0fM' | format(all['total_chex'] / 1e6)) }}</b></div>
+  </div>
+
+  <div class="charts">
+    {% set cid = ticker | lower %}
+    <div class="chart-block">
+      <div class="chart-title">GEX by Strike</div>
+      <div class="chart-wrap"><canvas id="gex_{{ cid }}"></canvas></div>
+    </div>
+    <div class="chart-block">
+      <div class="chart-title">Vanna Exposure (VEX) by Strike</div>
+      <div class="chart-wrap"><canvas id="vex_{{ cid }}"></canvas></div>
+    </div>
+    <div class="chart-block">
+      <div class="chart-title">Charm Exposure (CHEX) by Strike</div>
+      <div class="chart-wrap"><canvas id="chex_{{ cid }}"></canvas></div>
+    </div>
+
+    <script>
+    (function() {
+      var strikes = {{ all['chart_strikes'] | tojson }};
+      var gex     = {{ all['chart_gex']     | tojson }};
+      var vex     = {{ all['chart_vex']     | tojson }};
+      var chex    = {{ all['chart_chex']    | tojson }};
+
+      var commonOpts = {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#334155', font: { size: 9 }, maxTicksLimit: 20 }, grid: { color: '#131620' } },
+          y: { ticks: { color: '#334155', font: { size: 9 } }, grid: { color: '#1a1d2e' } }
+        }
+      };
+
+      new Chart(document.getElementById('gex_{{ cid }}'), {
+        type: 'bar',
+        data: { labels: strikes, datasets: [{ data: gex, backgroundColor: gex.map(v => v >= 0 ? 'rgba(74,222,128,0.75)' : 'rgba(248,113,113,0.75)'), borderWidth: 0 }] },
+        options: commonOpts
+      });
+
+      new Chart(document.getElementById('vex_{{ cid }}'), {
+        type: 'bar',
+        data: { labels: strikes, datasets: [{ data: vex, backgroundColor: vex.map(v => v >= 0 ? 'rgba(96,165,250,0.75)' : 'rgba(251,191,36,0.75)'), borderWidth: 0 }] },
+        options: commonOpts
+      });
+
+      new Chart(document.getElementById('chex_{{ cid }}'), {
+        type: 'bar',
+        data: { labels: strikes, datasets: [{ data: chex, backgroundColor: chex.map(v => v >= 0 ? 'rgba(167,139,250,0.75)' : 'rgba(251,146,60,0.75)'), borderWidth: 0 }] },
+        options: commonOpts
+      });
+    })();
+    </script>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+{% endfor %}
+
+</body>
+</html>
