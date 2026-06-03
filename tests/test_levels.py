@@ -32,6 +32,20 @@ def test_find_levels_put_wall_below_spot():
     assert levels['put_wall'] < SPOT
 
 
+def test_find_levels_put_wall_excludes_deep_otm():
+    """Deep-OTM put (>20% below spot) with huge OI must not become put wall."""
+    df = pd.DataFrame([
+        {'strike': 545.0, 'type': 'call', 'openInterest': 10000, 'impliedVolatility': 0.20, 'expiration': '2026-06-20'},
+        {'strike': 535.0, 'type': 'put',  'openInterest': 8000,  'impliedVolatility': 0.22, 'expiration': '2026-06-20'},
+        # Deep OTM put at 30% below spot (like stale QQQ $450 vs $540 spot)
+        {'strike': 378.0, 'type': 'put',  'openInterest': 500000, 'impliedVolatility': 0.50, 'expiration': '2026-06-20'},
+    ])
+    df = calculate_all_greeks(df, SPOT)
+    levels = find_levels(df, SPOT)
+    # Put wall must be within 20% of spot, not at 378
+    assert levels['put_wall'] is None or levels['put_wall'] >= SPOT * 0.80
+
+
 def test_find_levels_has_vanna_charm_keys():
     levels = find_levels(make_processed_chain(), SPOT)
     for key in ('vanna_wall', 'charm_wall', 'total_vex', 'total_chex'):

@@ -16,8 +16,10 @@ def find_levels(df: pd.DataFrame, spot: float) -> dict:
         .reset_index(drop=True)
     )
 
-    above = by_strike[by_strike['strike'] > spot]
-    below = by_strike[by_strike['strike'] < spot]
+    # Limit wall search to ±20% of spot to exclude stale deep-OTM positions
+    WALL_RANGE = 0.20
+    above = by_strike[(by_strike['strike'] > spot) & (by_strike['strike'] <= spot * (1 + WALL_RANGE))]
+    below = by_strike[(by_strike['strike'] < spot) & (by_strike['strike'] >= spot * (1 - WALL_RANGE))]
 
     call_wall = float(above.loc[above['gex'].idxmax(), 'strike']) if len(above) > 0 else None
     put_wall  = float(below.loc[below['gex'].idxmin(), 'strike']) if len(below) > 0 else None
