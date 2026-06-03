@@ -1,6 +1,7 @@
 import yfinance as yf
 import pandas as pd
 import requests
+from datetime import datetime
 from io import StringIO
 
 
@@ -84,7 +85,6 @@ def fetch_chain_cboe(ticker: str) -> tuple:
             df['openInterest'] = pd.to_numeric(df['openInterest'], errors='coerce').fillna(0).astype(int)
 
     # CBOE quote table is front-month only — use today as expiration placeholder
-    from datetime import datetime
     exp = datetime.now().strftime('%Y-%m-%d')
     calls['expiration'] = exp
     puts['expiration']  = exp
