@@ -35,6 +35,8 @@ def ql_european_gamma(S: float, K: float, T: float, r: float,
 
     Use for SPX, NDX — cash-settled index options with no early exercise.
     """
+    if sigma <= 0 or S <= 0:
+        return 0.0
     ql.Settings.instance().evaluationDate = ql.Date.todaysDate()
     opt_type = ql.Option.Call if option_type == 'call' else ql.Option.Put
     payoff   = ql.PlainVanillaPayoff(opt_type, K)
@@ -54,6 +56,8 @@ def ql_american_gamma(S: float, K: float, T: float, r: float,
     Gamma computed via central-difference numerical differentiation of BAW price:
         gamma ≈ (P(S+ε) + P(S-ε) - 2·P(S)) / ε²  where ε = S × 0.001
     """
+    if sigma <= 0 or S <= 0:
+        return 0.0
     ql.Settings.instance().evaluationDate = ql.Date.todaysDate()
     opt_type = ql.Option.Call if option_type == 'call' else ql.Option.Put
     maturity = _ql_date_from_T(T)
@@ -77,10 +81,13 @@ def ql_black76_gamma(S: float, K: float, T: float, r: float,
     """
     Black-76 gamma for futures options (closed-form).
 
-    S is the futures price (forward). r is unused but kept for API consistency.
-    Formula: N'(d1) / (F * sigma * sqrt(T))
+    S is the futures price (forward). The discount factor e^{-rT} is included
+    per the correct Black-76 formula:
+        gamma = e^{-rT} * N'(d1) / (F * sigma * sqrt(T))
     where d1 = (ln(F/K) + 0.5 * sigma^2 * T) / (sigma * sqrt(T))
     """
+    if sigma <= 0 or S <= 0:
+        return 0.0
     d1      = (math.log(S / K) + 0.5 * sigma ** 2 * T) / (sigma * math.sqrt(T))
     npdf_d1 = math.exp(-0.5 * d1 ** 2) / math.sqrt(2 * math.pi)
-    return npdf_d1 / (S * sigma * math.sqrt(T))
+    return math.exp(-r * T) * npdf_d1 / (S * sigma * math.sqrt(T))

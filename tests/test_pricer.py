@@ -67,11 +67,11 @@ def test_american_gamma_gte_european_put():
 
 
 def test_black76_gamma_matches_formula():
-    # Black-76 ATM gamma: N'(d1) / (F * sigma * sqrt(T))
+    # Black-76 gamma: e^{-rT} * N'(d1) / (F * sigma * sqrt(T))
     # For ATM Black-76: d1 = 0.5 * sigma * sqrt(T)
     F, K, T, r, sigma = 100.0, 100.0, 0.25, 0.05, 0.20
     d1 = 0.5 * sigma * math.sqrt(T)
-    expected = math.exp(-0.5 * d1 ** 2) / math.sqrt(2 * math.pi) / (F * sigma * math.sqrt(T))
+    expected = math.exp(-r * T) * math.exp(-0.5 * d1 ** 2) / math.sqrt(2 * math.pi) / (F * sigma * math.sqrt(T))
     g = ql_black76_gamma(F, K, T, r, sigma, 'call')
     assert g == pytest.approx(expected, rel=0.01)
 
