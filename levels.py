@@ -21,6 +21,7 @@ def find_levels(df: pd.DataFrame, spot: float) -> dict:
 
     call_wall = float(above.loc[above['gex'].idxmax(), 'strike']) if len(above) > 0 else None
     put_wall  = float(below.loc[below['gex'].idxmin(), 'strike']) if len(below) > 0 else None
+    # HVL: strike with most negative net GEX on the entire chain (our convention, per gex_calc.py)
     hvl       = float(by_strike.loc[by_strike['gex'].idxmin(), 'strike'])
 
     by_strike['cum_gex'] = by_strike['gex'].cumsum()
@@ -77,11 +78,15 @@ def get_futures_price(symbol: str) -> float:
     if price is None:
         price = ticker.info.get('regularMarketPrice')
     if price is None:
-        price = ticker.history(period='1d')['Close'].iloc[-1]
+        hist = ticker.history(period='1d')
+        if hist.empty:
+            raise ValueError(f"No price data available for {symbol}")
+        price = hist['Close'].iloc[-1]
     return float(price)
 
 
 def add_futures_conversion(levels: dict, ticker: str, spot: float) -> dict:
+    # QQQ -> NQ, all other tickers (SPY, SPX, etc.) -> ES
     futures_symbol = 'NQ=F' if ticker == 'QQQ' else 'ES=F'
     futures_name   = 'NQ'   if ticker == 'QQQ' else 'ES'
 
