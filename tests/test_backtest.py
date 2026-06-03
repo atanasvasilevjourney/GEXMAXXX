@@ -109,3 +109,27 @@ def test_format_report_contains_signal_only_line():
     report = format_report(result)
     assert 'SIGNAL_ONLY' in report
     assert 'EDGE VALIDATED' in report
+
+
+def test_replay_produces_trade():
+    """10-bar fixture produces exactly 1 trade (enter at bar 1, exit at bar 8)."""
+    trades = replay(BARS, SNAPSHOTS_FN, arm_distance_pts=10.0)
+    assert len(trades) == 1
+
+
+def test_replay_trade_direction_is_short():
+    """Fading resistance at call_wall (above price) → short."""
+    trades = replay(BARS, SNAPSHOTS_FN, arm_distance_pts=10.0)
+    assert trades[0].direction == 'short'
+
+
+def test_replay_pnl_correct():
+    """Short entered ~5348, exited at 5320 on regime flip → pnl = 5348 - 5320 = 28 pts."""
+    trades = replay(BARS, SNAPSHOTS_FN, arm_distance_pts=10.0)
+    assert trades[0].pnl_pts == pytest.approx(28.0, abs=1.0)
+
+
+def test_replay_regime_flip_exits_immediately():
+    """Regime flips to negative at bar 8 → trade closes at bar 8."""
+    trades = replay(BARS, SNAPSHOTS_FN, arm_distance_pts=10.0)
+    assert trades[0].exit_bar == 8
