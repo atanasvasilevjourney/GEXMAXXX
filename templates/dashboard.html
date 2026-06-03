@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEX Live</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0f1117; color: #e2e8f0; font-family: Consolas, Monaco, 'Courier New', monospace; font-size: 13px; }
+
+.status-bar { display: flex; align-items: center; gap: 16px; padding: 10px 20px; background: #070909; border-bottom: 1px solid #1a1d2e; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; }
+.app-title { font-size: 14px; font-weight: 700; letter-spacing: 3px; color: #f1f5f9; }
+.status-item { color: #475569; font-size: 11px; }
+.status-item strong { color: #94a3b8; }
+
+.badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 3px; letter-spacing: 0.5px; text-transform: uppercase; }
+.badge-src  { background: #0f2847; color: #60a5fa; border: 1px solid #1e4080; }
+.badge-live { background: #0a2e1a; color: #4ade80; border: 1px solid #166534; }
+.badge-stale{ background: #2e1a00; color: #fbbf24; border: 1px solid #92400e; }
+.badge-pos  { background: #0a2e1a; color: #4ade80; border: 1px solid #166534; }
+.badge-neg  { background: #2e0a0a; color: #f87171; border: 1px solid #7f1d1d; }
+
+.conn-banner { display: none; background: #7f1d1d; color: #fca5a5; text-align: center; padding: 8px; font-size: 12px; font-weight: 700; }
+
+.symbols-grid { display: grid; grid-template-columns: 1fr 1fr; }
+@media (max-width: 1100px) { .symbols-grid { grid-template-columns: 1fr; } }
+
+.symbol-card { border-right: 1px solid #252840; }
+.symbol-card:last-child { border-right: none; }
+.symbol-card.stale { animation: pulse-stale 2s infinite; }
+@keyframes pulse-stale {
+  0%, 100% { box-shadow: inset 0 0 0 2px #fbbf24; }
+  50%       { box-shadow: inset 0 0 0 3px #f59e0b; }
+}
+
+.symbol-header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; background: #1a1d2e; border-bottom: 1px solid #252840; }
+.symbol-name { font-size: 22px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.5px; }
+.error-card { padding: 20px; color: #f87171; font-size: 12px; }
+
+.levels-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid #252840; }
+.levels-col { padding: 14px 16px; border-right: 1px solid #252840; }
+.levels-col:last-child { border-right: none; }
+.col-title { font-size: 10px; color: #475569; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px; font-weight: 700; }
+.lrow { display: flex; justify-content: space-between; padding: 3px 0; }
+.lkey { color: #64748b; font-size: 11px; }
+.lval { font-weight: 700; font-size: 11px; color: #f1f5f9; }
+.lval.g { color: #4ade80; }
+.lval.r { color: #f87171; }
+.lval.y { color: #fbbf24; }
+.lval.b { color: #60a5fa; }
+.no-data { color: #334155; font-size: 11px; padding: 8px 0; font-style: italic; }
+
+.totals-bar { display: flex; gap: 20px; padding: 8px 16px; background: #0f1117; border-bottom: 1px solid #252840; flex-wrap: wrap; }
+.total-item { font-size: 11px; color: #475569; }
+.total-item b { color: #94a3b8; margin-left: 4px; }
+
+.charts { padding: 16px; }
+.chart-block { margin-bottom: 20px; }
+.chart-title { font-size: 10px; color: #475569; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px; font-weight: 700; }
+.chart-wrap { position: relative; height: 150px; }
+
+.loading-msg { padding: 20px; color: #334155; font-size: 11px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="status-bar">
+  <span class="app-title">GEX LIVE</span>
+  <span id="src-badge" class="badge badge-src">--</span>
+  <span id="live-badge" class="badge badge-live">&#9679; LIVE</span>
+  <span class="status-item">Last: <strong id="last-updated">--:--:--</strong></span>
+  <span class="status-item">Next: <strong id="next-refresh">--:--</strong></span>
+</div>
+
+<div id="conn-banner" class="conn-banner">&#9888; CONNECTION LOST -- retrying in 10s...</div>
+
+<div class="symbols-grid">
+  <div id="card-SPY" class="symbol-card"><div class="loading-msg">Loading SPY...</div></div>
+  <div id="card-QQQ" class="symbol-card"><div class="loading-msg">Loading QQQ...</div></div>
+</div>
+
+<script>
+const TICKERS = ['SPY', 'QQQ'];
+const charts = {};
+let refreshInterval = 300;
+let countdown = 300;
+
+function fmt(v, dec) {
+  dec = dec == null ? 0 : dec;
+  if (v == null) return 'N/A';
+  return Number(v).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+function fmtGex(v) {
+  if (v == null) return 'N/A';
+  const b = v / 1e9;
+  return (b >= 0 ? '+$' : '-$') + Math.abs(b).toFixed(2) + 'B';
+}
+function fmtChex(v) {
+  if (v == null) return 'N/A';
+  return (v >= 0 ? '+' : '') + (v / 1e6).toFixed(0) + 'M';
+}
+function fmtTime(iso) {
+  if (!iso) return '--:--:--';
+  return new Date(iso).toLocaleTimeString('en-US', { hour12: false });
+}
+function fmtCountdown(s) {
+  const m = Math.floor(s / 60), sec = s % 60;
+  return m + ':' + String(sec).padStart(2, '0');
+}
+
+const baseOpts = {
+  responsive: true, maintainAspectRatio: false, animation: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { ticks: { color: '#334155', font: { size: 9 }, maxTicksLimit: 15 }, grid: { color: '#131620' } },
+    y: { ticks: { color: '#334155', font: { size: 9 } }, grid: { color: '#1a1d2e' } }
+  }
+};
+
+function colors(arr, pos, neg) { return arr.map(v => v >= 0 ? pos : neg); }
+
+function upsertChart(id, strikes, values, posColor, negColor) {
+  if (charts[id]) {
+    charts[id].data.labels = strikes;
+    charts[id].data.datasets[0].data = values;
+    charts[id].data.datasets[0].backgroundColor = colors(values, posColor, negColor);
+    charts[id].update('none');
+  } else {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    charts[id] = new Chart(canvas, {
+      type: 'bar',
+      data: { labels: strikes, datasets: [{ data: values, backgroundColor: colors(values, posColor, negColor), borderWidth: 0 }] },
+      options: baseOpts
+    });
+  }
+}
+
+function destroyCharts(ticker) {
+  ['gex','vex','chex'].forEach(t => { const k = t+'_'+ticker; if (charts[k]) { charts[k].destroy(); delete charts[k]; } });
+}
+
+function buildLevelsCol(title, lvl, isFutures) {
+  if (!lvl) return `<div class="levels-col"><div class="col-title">${title}</div><div class="no-data">No 0DTE today</div></div>`;
+  const rows = [
+    ['Spot', fmt(lvl.spot, 2), ''],
+    ['Call Wall', lvl.call_wall != null ? fmt(lvl.call_wall) : 'N/A', 'g'],
+    ['Put Wall',  lvl.put_wall  != null ? fmt(lvl.put_wall)  : 'N/A', 'r'],
+    ['Flip',      fmt(lvl.gamma_flip), 'y'],
+    ['HVL',       fmt(lvl.hvl), 'r'],
+  ];
+  if (!isFutures) {
+    rows.push(['Vanna Wall', fmt(lvl.vanna_wall), 'b']);
+    rows.push(['Charm Wall', fmt(lvl.charm_wall), 'b']);
+  } else if (lvl.multiplier) {
+    rows.push(['Mult', lvl.multiplier + 'x', '']);
+  }
+  const rowsHtml = rows.map(([k,v,c]) => `<div class="lrow"><span class="lkey">${k}</span><span class="lval ${c}">${v}</span></div>`).join('');
+  return `<div class="levels-col"><div class="col-title">${title}</div>${rowsHtml}</div>`;
+}
+
+function buildCardHtml(ticker, d) {
+  if (d.error) {
+    return `<div class="symbol-header"><span class="symbol-name">${ticker}</span><span class="badge badge-neg">error</span></div><div class="error-card">${d.error}</div>`;
+  }
+  const all  = d.all  || {};
+  const dte0 = d['0dte'];
+  const fut  = d.futures || {};
+  const isPos = (all.regime || '').includes('POSITIVE');
+  const futTitle = fut.symbol ? fut.symbol + ' Equiv' : 'Futures';
+  const futLvl = fut.price != null ? { spot: fut.spot, call_wall: fut.call_wall, put_wall: fut.put_wall, gamma_flip: fut.gamma_flip, hvl: fut.hvl, multiplier: fut.multiplier } : null;
+  return `
+    <div class="symbol-header">
+      <span class="symbol-name">${ticker}</span>
+      <span class="badge ${isPos ? 'badge-pos' : 'badge-neg'}">${all.regime || '--'}</span>
+    </div>
+    <div class="levels-grid">
+      ${buildLevelsCol('All Chain', all, false)}
+      ${buildLevelsCol('0DTE', dte0, false)}
+      ${buildLevelsCol(futTitle, futLvl, true)}
+    </div>
+    <div class="totals-bar">
+      <div class="total-item">GEX<b id="tgex-${ticker}">${fmtGex(all.total_gex)}</b></div>
+      <div class="total-item">VEX<b id="tvex-${ticker}">${fmtGex(all.total_vex)}</b></div>
+      <div class="total-item">CHEX<b id="tchex-${ticker}">${fmtChex(all.total_chex)}</b></div>
+    </div>
+    <div class="charts">
+      <div class="chart-block"><div class="chart-title">GEX by Strike</div><div class="chart-wrap"><canvas id="gex_${ticker}"></canvas></div></div>
+      <div class="chart-block"><div class="chart-title">Vanna Exposure (VEX)</div><div class="chart-wrap"><canvas id="vex_${ticker}"></canvas></div></div>
+      <div class="chart-block"><div class="chart-title">Charm Exposure (CHEX)</div><div class="chart-wrap"><canvas id="chex_${ticker}"></canvas></div></div>
+    </div>`;
+}
+
+function drawCharts(ticker, all) {
+  const s = all.chart_strikes || [];
+  upsertChart('gex_'+ticker,  s, all.chart_gex  || [], 'rgba(74,222,128,0.75)',  'rgba(248,113,113,0.75)');
+  upsertChart('vex_'+ticker,  s, all.chart_vex  || [], 'rgba(96,165,250,0.75)',  'rgba(251,191,36,0.75)');
+  upsertChart('chex_'+ticker, s, all.chart_chex || [], 'rgba(167,139,250,0.75)', 'rgba(251,146,60,0.75)');
+}
+
+function renderCard(ticker, d) {
+  const card = document.getElementById('card-'+ticker);
+  if (!card) return;
+  destroyCharts(ticker);
+  card.innerHTML = buildCardHtml(ticker, d);
+  if (!d.error) drawCharts(ticker, d.all || {});
+}
+
+function updateInPlace(ticker, d) {
+  const card = document.getElementById('card-'+ticker);
+  if (!card || !card.querySelector('.symbol-header') || d.error) { renderCard(ticker, d); return; }
+  const tgex = document.getElementById('tgex-'+ticker); if (tgex) tgex.textContent = fmtGex((d.all||{}).total_gex);
+  const tvex = document.getElementById('tvex-'+ticker); if (tvex) tvex.textContent = fmtGex((d.all||{}).total_vex);
+  const tchex = document.getElementById('tchex-'+ticker); if (tchex) tchex.textContent = fmtChex((d.all||{}).total_chex);
+  drawCharts(ticker, d.all || {});
+}
+
+let retryTimeout = null;
+
+async function fetchAndRender(isFirstLoad) {
+  try {
+    const resp = await fetch('/api/gex');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+
+    document.getElementById('conn-banner').style.display = 'none';
+    if (retryTimeout) { clearTimeout(retryTimeout); retryTimeout = null; }
+
+    document.getElementById('last-updated').textContent = fmtTime(data.ts);
+    const firstOk = TICKERS.find(t => data[t] && !data[t].error);
+    if (firstOk) document.getElementById('src-badge').textContent = data[firstOk].source || 'yfinance';
+
+    const liveBadge = document.getElementById('live-badge');
+    if (data.stale) {
+      liveBadge.textContent = '\u26a0 STALE';
+      liveBadge.className = 'badge badge-stale';
+      TICKERS.forEach(t => document.getElementById('card-'+t)?.classList.add('stale'));
+    } else {
+      liveBadge.textContent = '\u25cf LIVE';
+      liveBadge.className = 'badge badge-live';
+      TICKERS.forEach(t => document.getElementById('card-'+t)?.classList.remove('stale'));
+    }
+
+    TICKERS.forEach(t => { if (data[t]) { isFirstLoad ? renderCard(t, data[t]) : updateInPlace(t, data[t]); } });
+    countdown = refreshInterval;
+  } catch(e) {
+    console.error('Fetch failed:', e);
+    document.getElementById('conn-banner').style.display = 'block';
+    retryTimeout = setTimeout(() => fetchAndRender(false), 10000);
+  }
+}
+
+async function init() {
+  TICKERS.forEach(t => {
+    const c = document.getElementById('card-'+t);
+    if (c) c.innerHTML = `<div class="symbol-header"><span class="symbol-name">${t}</span></div><div class="loading-msg">Loading...</div>`;
+  });
+  try {
+    const s = await fetch('/api/status').then(r => r.json());
+    refreshInterval = s.refresh_interval_s || 300;
+    countdown = s.next_refresh_in_s || refreshInterval;
+  } catch(_) {}
+
+  await fetchAndRender(true);
+  setInterval(() => fetchAndRender(false), refreshInterval * 1000);
+  setInterval(() => { countdown = Math.max(0, countdown-1); document.getElementById('next-refresh').textContent = fmtCountdown(countdown); }, 1000);
+}
+
+init();
+</script>
+</body>
+</html>
