@@ -46,5 +46,43 @@ def test_time_to_expiry_floor():
     assert T == pytest.approx(MIN_T_YEARS)
 
 
-# --- Engine tests (added in Task 2) ---
-# DO NOT add engine tests here yet.
+# --- Engine tests ---
+
+def test_european_gamma_known_value():
+    # ATM, T=0.25yr, σ=0.20, r=0.05, S=K=100
+    # d1 = (ln(1) + (0.05+0.02)*0.25) / (0.20*0.5) = 0.175
+    # gamma = N'(0.175) / (100*0.20*0.5) ≈ 0.0393
+    g = ql_european_gamma(100.0, 100.0, 0.25, 0.05, 0.20, 'call')
+    assert g == pytest.approx(0.0393, abs=0.002)
+
+
+def test_american_gamma_gte_european_put():
+    # ATM put, 30-day: American put >= European put.
+    # Puts always have nonzero early exercise premium.
+    # Calls without dividends: American == European, so test uses put.
+    S, K, T, r, sigma = 100.0, 100.0, 30 / 365.25, 0.05, 0.20
+    g_eu = ql_european_gamma(S, K, T, r, sigma, 'put')
+    g_am = ql_american_gamma(S, K, T, r, sigma, 'put')
+    assert g_am >= g_eu
+
+
+def test_black76_gamma_matches_formula():
+    # Black-76 ATM gamma: N'(d1) / (F * sigma * sqrt(T))
+    # For ATM Black-76: d1 = 0.5 * sigma * sqrt(T)
+    F, K, T, r, sigma = 100.0, 100.0, 0.25, 0.05, 0.20
+    d1 = 0.5 * sigma * math.sqrt(T)
+    expected = math.exp(-0.5 * d1 ** 2) / math.sqrt(2 * math.pi) / (F * sigma * math.sqrt(T))
+    g = ql_black76_gamma(F, K, T, r, sigma, 'call')
+    assert g == pytest.approx(expected, rel=0.01)
+
+
+def test_compute_gamma_dispatch_returns_positive():
+    # Smoke test: compute_gamma returns a positive float for each style
+    for style in PricerStyle:
+        g = compute_gamma(100.0, 100.0, 0.25, 0.05, 0.20, 'call', style)
+        assert g > 0, f"Expected positive gamma for style={style}"
+
+
+def test_compute_gamma_unknown_style_raises():
+    with pytest.raises((ValueError, AttributeError)):
+        compute_gamma(100.0, 100.0, 0.25, 0.05, 0.20, 'call', 'invalid_style')
