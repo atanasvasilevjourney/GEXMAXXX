@@ -21,6 +21,10 @@ def select_levels(snapshot: dict, pct_threshold: float = 0.30) -> list[Level]:
     if by_strike.empty:
         return []
 
+    by_strike = by_strike.dropna(subset=['gex'])
+    if by_strike.empty:
+        return []
+
     max_abs_gex = by_strike['gex'].abs().max()
     if max_abs_gex == 0:
         return []
