@@ -60,13 +60,13 @@ def static_snapshots_fn(
     it uniformly across the entire backtest.
 
     Args:
-        regime:     Regime dataclass (state='positive' or 'negative')
+        regime:     Regime dataclass
         fut_levels: list[FutLevel] — gamma walls projected to NQ price
 
     Returns:
         Callable[[int], tuple[Regime, list[FutLevel]]]
     """
-    def _fn(bar_index: int) -> tuple[Regime, list[FutLevel]]:  # noqa: ARG001
+    def _fn(_bar_index: int) -> tuple[Regime, list[FutLevel]]:
         return regime, fut_levels
     return _fn
 
@@ -106,9 +106,8 @@ def _load_csv(path: str | Path) -> pd.DataFrame:
 
 def _compute_atr(df: pd.DataFrame, period: int) -> pd.Series:
     """
-    Wilder ATR.  True Range = max(H-L, |H-Cprev|, |L-Cprev|).
-    Uses EWM with alpha=1/period (Wilder smoothing).
-    Warmup NaN rows back-filled with first valid ATR.
+    Wilder-style ATR via EWM (alpha=1/period, adjust=False).
+    Any NaN values in the warmup period are back-filled with the first valid ATR.
     """
     prev_close = df['close'].shift(1)
     tr = pd.concat([

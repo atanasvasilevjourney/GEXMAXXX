@@ -51,11 +51,6 @@ def _lower_wick_row(price: float = 8400.0) -> dict:
     return {"open": price, "high": price + 1, "low": price - 10, "close": price}
 
 
-def _normal_row(price: float = 8400.0) -> dict:
-    """Normal bar — body fills most of range, no dominant wick."""
-    return {"open": price - 2, "high": price + 5, "low": price - 5, "close": price + 2}
-
-
 # ── tests ──────────────────────────────────────────────────────────────────
 
 def test_load_returns_correct_count_and_prices(tmp_path):
