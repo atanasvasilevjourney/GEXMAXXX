@@ -5,7 +5,7 @@ import pytest
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from freshness import OISource, classify_source, market_hours
+from freshness import OISource, classify_source, market_hours, SnapshotQuality, assess_snapshot
 
 
 # --- Helpers ---
@@ -92,3 +92,35 @@ def test_classify_source_unknown_defaults_settled():
 def test_classify_source_case_insensitive():
     assert classify_source("YFinance") == OISource.SETTLED
     assert classify_source("CBOE") == OISource.SETTLED
+
+
+# --- assess_snapshot ---
+
+def test_assess_snapshot_yfinance_settled():
+    q = assess_snapshot("yfinance", fetched_at=_outside_market())
+    assert q.oi_source   == OISource.SETTLED
+    assert q.source_name == "yfinance"
+
+
+def test_assess_snapshot_cboe_settled():
+    q = assess_snapshot("cboe", fetched_at=_outside_market())
+    assert q.oi_source == OISource.SETTLED
+
+
+def test_assess_snapshot_tradier_live():
+    q = assess_snapshot("tradier", fetched_at=_outside_market())
+    assert q.oi_source == OISource.LIVE
+
+
+def test_is_intraday_stale_during_market():
+    # SETTLED source during market hours → is_intraday_stale=True
+    q = assess_snapshot("yfinance", fetched_at=_inside_market())
+    assert q.is_intraday_stale is True
+    assert q.market_open is True
+
+
+def test_is_intraday_stale_outside_market():
+    # SETTLED source outside market hours → is_intraday_stale=False
+    q = assess_snapshot("yfinance", fetched_at=_outside_market())
+    assert q.is_intraday_stale is False
+    assert q.market_open is False

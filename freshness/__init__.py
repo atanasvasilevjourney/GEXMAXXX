@@ -1,5 +1,9 @@
 from .sources import OISource, classify_source
+from .quality import SnapshotQuality, assess_snapshot
 from .market import market_hours
 
-# assess_snapshot and SnapshotQuality added in Task 2
-__all__ = ['OISource', 'classify_source', 'market_hours']
+__all__ = [
+    'OISource', 'classify_source',
+    'SnapshotQuality', 'assess_snapshot',
+    'market_hours',
+]
