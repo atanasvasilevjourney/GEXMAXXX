@@ -46,16 +46,15 @@ def _run_pipeline_sync() -> dict:
     for ticker in SYMBOLS:
         try:
             try:
-                df, spot = fetch_chain(ticker)
-                source = "yfinance"
+                df, spot, quality = fetch_chain(ticker)
             except Exception as e_yf:
                 print(f"[{ticker}] yfinance failed ({e_yf}), trying CBOE...")
-                df, spot = fetch_chain_cboe(ticker)
-                source = "cboe"
+                df, spot, quality = fetch_chain_cboe(ticker)
             df = calculate_all_greeks(df, spot)
             levels = get_all_levels(df, spot)
             levels = add_futures_conversion(levels, ticker, spot)
-            levels["source"] = source
+            levels.update(quality.to_dict())   # adds oi_source, is_intraday_stale, etc.
+            levels["source"] = quality.source_name  # backward-compat alias
             levels["ticker"] = ticker
             results[ticker] = levels
         except Exception as e:

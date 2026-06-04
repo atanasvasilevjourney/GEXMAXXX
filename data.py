@@ -4,6 +4,8 @@ import requests
 from datetime import datetime
 from io import StringIO
 
+from freshness import assess_snapshot, SnapshotQuality
+
 
 def fetch_chain(ticker: str) -> tuple:
     """Fetch options chain from Yahoo Finance (primary source, 15-min delayed)."""
@@ -33,7 +35,8 @@ def fetch_chain(ticker: str) -> tuple:
         frames.append(combined)
 
     df = pd.concat(frames, ignore_index=True)
-    return df, float(spot)
+    quality = assess_snapshot("yfinance")
+    return df, float(spot), quality
 
 
 def fetch_chain_cboe(ticker: str) -> tuple:
@@ -90,11 +93,14 @@ def fetch_chain_cboe(ticker: str) -> tuple:
     puts['expiration']  = exp
 
     df = pd.concat([calls, puts], ignore_index=True)
-    return df, spot
+    quality = assess_snapshot("cboe")
+    return df, spot, quality
 
 
 def fetch_chain_tradier(ticker: str, api_key: str) -> tuple:
-    """Tradier real-time options chain. Stub -- configure API key first."""
+    """Tradier real-time options chain. Stub -- configure API key first.
+    Returns: (df, spot, SnapshotQuality) where quality.oi_source == OISource.LIVE
+    """
     raise NotImplementedError(
         "Tradier not configured. Sign up at tradier.com (free brokerage account), "
         "get API key, then implement this function in data.py."
