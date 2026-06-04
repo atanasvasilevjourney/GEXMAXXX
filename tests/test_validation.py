@@ -62,3 +62,27 @@ def test_kupiec_too_many_exceedances_fails():
     pnls = [10.0] * 76 + [-100.0] * 4 + [-200.0] * 20
     p = kupiec_pof(pnls, confidence=0.95)
     assert p < 0.05
+
+
+from backtest import compute_stats
+
+
+# ── validate() end-to-end ─────────────────────────────────────────────────────
+
+def test_validate_consistent_winners_passes():
+    # 50 trades all +10 pts → MC p=0.0, Kupiec auto-pass (0% loss rate) → passed=True
+    trades = _make_trades([10.0] * 50)
+    vr = validate(trades)
+    assert vr.mc_passed     is True
+    assert vr.kupiec_passed is True
+    assert vr.passed        is True
+    assert vr.n_permutations == 1000
+
+
+def test_validate_random_pnls_mc_fails():
+    # Alternating +1/-1 → MC p > 0.05 → mc_passed=False → passed=False
+    pnls = [1.0 if i % 2 == 0 else -1.0 for i in range(50)]
+    trades = _make_trades(pnls)
+    vr = validate(trades)
+    assert vr.mc_passed is False
+    assert vr.passed    is False
