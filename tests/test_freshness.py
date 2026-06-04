@@ -51,3 +51,44 @@ def test_market_hours_closed_afterhours():
     # Wednesday 5:00 PM ET → closed (after 16:00)
     dt = datetime(2026, 6, 3, 17, 0, 0, tzinfo=ZoneInfo('America/New_York'))
     assert market_hours(dt) is False
+
+
+# --- market_hours boundary ---
+
+def test_market_hours_open_at_930():
+    # Exactly 09:30:00 ET → open (boundary inclusive)
+    dt = datetime(2026, 6, 2, 9, 30, 0, tzinfo=ZoneInfo('America/New_York'))
+    assert market_hours(dt) is True
+
+
+def test_market_hours_closed_at_1600():
+    # Exactly 16:00:00 ET → closed (boundary exclusive)
+    dt = datetime(2026, 6, 2, 16, 0, 0, tzinfo=ZoneInfo('America/New_York'))
+    assert market_hours(dt) is False
+
+
+def test_market_hours_naive_datetime_raises():
+    # Naive datetime should raise ValueError, not silently convert
+    from datetime import datetime as dt_cls
+    naive = dt_cls(2026, 6, 2, 10, 0, 0)  # no tzinfo
+    with pytest.raises(ValueError, match="timezone-aware"):
+        market_hours(naive)
+
+
+# --- classify_source ---
+
+def test_classify_source_yfinance():
+    assert classify_source("yfinance") == OISource.SETTLED
+
+def test_classify_source_cboe():
+    assert classify_source("cboe") == OISource.SETTLED
+
+def test_classify_source_tradier():
+    assert classify_source("tradier") == OISource.LIVE
+
+def test_classify_source_unknown_defaults_settled():
+    assert classify_source("unknown_source") == OISource.SETTLED
+
+def test_classify_source_case_insensitive():
+    assert classify_source("YFinance") == OISource.SETTLED
+    assert classify_source("CBOE") == OISource.SETTLED

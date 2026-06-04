@@ -27,4 +27,6 @@ def classify_source(source_name: str) -> OISource:
     Returns:
         OISource
     """
+    if not isinstance(source_name, str):
+        return OISource.SETTLED
     return _SOURCE_MAP.get(source_name.lower(), OISource.SETTLED)

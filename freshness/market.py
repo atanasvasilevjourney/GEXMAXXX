@@ -24,6 +24,8 @@ def market_hours(now: datetime | None = None) -> bool:
     """
     if now is None:
         now = datetime.now(tz=ET)
+    if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
+        raise ValueError("market_hours: `now` must be timezone-aware")
     now_et = now.astimezone(ET)
     if now_et.weekday() >= 5:   # Saturday=5, Sunday=6
         return False
