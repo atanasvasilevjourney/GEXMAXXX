@@ -88,6 +88,13 @@ def get_futures_price(symbol: str) -> float:
 
 
 def add_futures_conversion(levels: dict, ticker: str, spot: float) -> dict:
+    import warnings
+    warnings.warn(
+        "add_futures_conversion() uses a multiplicative basis approximation. "
+        "Use level_projection.measure_basis() + level_projection.project() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     # QQQ -> NQ, all other tickers (SPY, SPX, etc.) -> ES
     futures_symbol = 'NQ=F' if ticker == 'QQQ' else 'ES=F'
     futures_name   = 'NQ'   if ticker == 'QQQ' else 'ES'

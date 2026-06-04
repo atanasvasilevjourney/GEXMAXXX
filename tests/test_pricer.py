@@ -86,3 +86,15 @@ def test_compute_gamma_dispatch_returns_positive():
 def test_compute_gamma_unknown_style_raises():
     with pytest.raises((ValueError, AttributeError)):
         compute_gamma(100.0, 100.0, 0.25, 0.05, 0.20, 'call', 'invalid_style')
+
+
+def test_additive_basis_consistency():
+    """level_projection additive basis round-trips correctly; no multiplicative fallback."""
+    from level_projection import measure_basis, project
+    from level_projection.models import Level
+    basis = measure_basis(future_price=5310.0, index_value=5300.0)
+    assert basis == pytest.approx(10.0)
+    levels = [Level(strike=5300.0, gex=100.0, tier=1, strength=1.0, label='pin')]
+    fut_levels = project(levels, basis)
+    assert fut_levels[0].fut_price == pytest.approx(5310.0)
+    assert fut_levels[0].basis_pts == pytest.approx(10.0)

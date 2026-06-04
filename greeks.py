@@ -2,24 +2,52 @@ import pandas as pd
 import numpy as np
 from scipy.stats import norm
 from datetime import datetime
+from pricer import compute_gamma, detect_style, time_to_expiry
 
 
-def calculate_gex(df: pd.DataFrame, spot: float, r: float = 0.05) -> pd.DataFrame:
-    df = df.copy()
-    df['T'] = (
-        pd.to_datetime(df['expiration']) - datetime.now()
-    ).dt.total_seconds() / (365.25 * 24 * 3600)
-    df['T'] = df['T'].clip(lower=0.001)
+def calculate_gex(df: pd.DataFrame, spot: float, r: float = 0.05,
+                  ticker: str = 'SPY') -> pd.DataFrame:
+    """
+    Compute GEX (gamma exposure) for each option in the chain.
 
+    Uses the correct pricer per ticker:
+      - European BS  for SPX, NDX (cash-settled, no early exercise)
+      - American BAW for QQQ, SPY, IWM (ETF options, early exercise possible)
+      - Black-76     for ES=F, NQ=F (futures options)
+
+    Args:
+        df:     options chain DataFrame with columns:
+                  strike, type ('call'|'put'), openInterest,
+                  impliedVolatility, expiration ('YYYY-MM-DD')
+        spot:   current underlying price
+        r:      risk-free rate (default 0.05)
+        ticker: underlying ticker — used to select pricer style (default 'SPY')
+
+    Returns:
+        df with added columns: T, iv, d1, d2, gamma, gex
+    """
+    style = detect_style(ticker)
+    df    = df.copy()
+
+    # Exact T in years (60-second floor; replaces old clip(lower=0.001))
+    df['T']  = df['expiration'].apply(time_to_expiry)
     df['iv'] = df['impliedVolatility'].replace(0, np.nan).fillna(0.20)
 
+    # d1/d2 retained for vanna/charm downstream (calculate_vanna, calculate_charm)
     df['d1'] = (
         np.log(spot / df['strike']) + (r + 0.5 * df['iv'] ** 2) * df['T']
     ) / (df['iv'] * np.sqrt(df['T']))
     df['d2'] = df['d1'] - df['iv'] * np.sqrt(df['T'])
 
-    df['gamma'] = norm.pdf(df['d1']) / (spot * df['iv'] * np.sqrt(df['T']))
-    # GEX per option: * 100 (contract multiplier) * spot^2 * 0.01 (per-1%-move convention)
+    # Gamma via correct pricer per style
+    df['gamma'] = df.apply(
+        lambda row: compute_gamma(
+            spot, row['strike'], row['T'], r, row['iv'], row['type'], style
+        ),
+        axis=1,
+    )
+
+    # GEX: gamma * OI * 100 (multiplier) * spot^2 * 0.01 (per-1%-move convention)
     df['gex'] = df['gamma'] * df['openInterest'] * 100 * spot ** 2 * 0.01
     df.loc[df['type'] == 'put', 'gex'] *= -1
     return df
