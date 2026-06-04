@@ -1,0 +1,53 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import pytest
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+from freshness import OISource, classify_source, market_hours
+
+
+# --- Helpers ---
+
+def _inside_market() -> datetime:
+    """Tuesday 2026-06-02 10:30 AM ET expressed in UTC."""
+    return datetime(2026, 6, 2, 14, 30, 0, tzinfo=timezone.utc)
+
+def _outside_market() -> datetime:
+    """Saturday 2026-06-06 10:00 AM ET expressed in UTC."""
+    return datetime(2026, 6, 6, 14, 0, 0, tzinfo=timezone.utc)
+
+
+# --- OISource ---
+
+def test_oi_source_values():
+    assert OISource.SETTLED.value   == "settled"
+    assert OISource.ESTIMATED.value == "estimated"
+    assert OISource.LIVE.value      == "live"
+
+
+# --- market_hours ---
+
+def test_market_hours_open():
+    # Tuesday 10:00 AM ET → open
+    dt = datetime(2026, 6, 2, 10, 0, 0, tzinfo=ZoneInfo('America/New_York'))
+    assert market_hours(dt) is True
+
+
+def test_market_hours_closed_weekend():
+    # Saturday → closed
+    dt = datetime(2026, 6, 6, 10, 0, 0, tzinfo=ZoneInfo('America/New_York'))
+    assert market_hours(dt) is False
+
+
+def test_market_hours_closed_premarket():
+    # Monday 8:00 AM ET → closed (before 09:30)
+    dt = datetime(2026, 6, 1, 8, 0, 0, tzinfo=ZoneInfo('America/New_York'))
+    assert market_hours(dt) is False
+
+
+def test_market_hours_closed_afterhours():
+    # Wednesday 5:00 PM ET → closed (after 16:00)
+    dt = datetime(2026, 6, 3, 17, 0, 0, tzinfo=ZoneInfo('America/New_York'))
+    assert market_hours(dt) is False
