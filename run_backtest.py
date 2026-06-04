@@ -5,9 +5,11 @@ Downloads 60 days of NQ=F 5-min bars via yfinance, fetches live GEX levels
 for QQQ, converts to NQ price space, then runs the full backtest pipeline.
 
 Usage:
-    python run_backtest.py
+    python run_backtest.py                    # live regime from GEX
+    python run_backtest.py --force-positive   # override regime to positive for testing
 """
 from __future__ import annotations
+import argparse
 import os
 import sys
 import tempfile
@@ -17,6 +19,13 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import pandas as pd
 import yfinance as yf
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--force-positive', action='store_true',
+                    help='Override regime to positive for pipeline testing')
+parser.add_argument('--arm-distance', type=float, default=20.0,
+                    help='Arm distance in NQ points (default: 20.0)')
+args = parser.parse_args()
 
 # Project imports
 sys.path.insert(0, os.path.dirname(__file__))
@@ -114,6 +123,10 @@ dist  = (qqq_spot - gamma_flip) * mult   # convert to NQ pts
 regime = Regime(state=state, distance_to_zero_gamma=dist, conviction=min(abs(dist) / 50.0, 1.0))
 print(f"\nRegime: state={regime.state}, distance={regime.distance_to_zero_gamma:.1f} NQ pts, conviction={regime.conviction:.2f}")
 
+if args.force_positive and regime.state != 'positive':
+    print("  [--force-positive] Overriding regime to positive for pipeline test.")
+    regime = Regime(state='positive', distance_to_zero_gamma=-20.0, conviction=0.6)
+
 
 # ── 5. Download NQ=F 5-min historical bars (60 days) ────────────────────────
 
@@ -143,8 +156,9 @@ bars = load_nq_bars(tmp.name)
 os.unlink(tmp.name)
 print(f"  {len(bars)} MarketTick objects")
 
-print("\nRunning replay...")
-trades = replay(bars, static_snapshots_fn(regime, fut_levels))
+print(f"\nRunning replay (arm_distance_pts={args.arm_distance})...")
+trades = replay(bars, static_snapshots_fn(regime, fut_levels),
+                arm_distance_pts=args.arm_distance)
 print(f"  Completed trades: {len(trades)}")
 
 if len(trades) < 2:
