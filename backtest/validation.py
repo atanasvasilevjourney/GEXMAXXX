@@ -8,7 +8,7 @@ from .models import TradeRecord
 
 @dataclass
 class ValidationResult:
-    mc_pvalue:      float   # fraction of shuffles with Sharpe > observed; lower is better
+    mc_pvalue:      float   # fraction of bootstrap resamples with Sharpe <= 0; lower is better
     mc_passed:      bool    # True if mc_pvalue < 0.05
     kupiec_pvalue:  float   # chi-squared p-value; higher = better-calibrated VaR
     kupiec_passed:  bool    # True if kupiec_pvalue >= 0.05 (or n < 10 → auto-pass)
@@ -31,45 +31,47 @@ def monte_carlo_pvalue(
     seed: int = 42,
 ) -> float:
     """
-    Permutation test: fraction of random orderings whose Sharpe STRICTLY EXCEEDS
-    the observed Sharpe.
+    Bootstrap test: fraction of bootstrap resamples where Sharpe is <= 0.
 
-    A low p-value means the observed ordering achieves a Sharpe that random
-    orderings cannot beat — the strategy's timing adds value.
+    Estimates whether the strategy's positive Sharpe is statistically supported.
+    A low p-value (< 0.05) means the Sharpe is consistently positive across
+    resamples — the edge is real, not a lucky run.
 
-    Uses strict > (not >=) so ties (identical PnLs) do not count as beats,
-    ensuring an all-winning strategy scores p = 0.0.
+    Unlike a permutation test (which cannot distinguish reorderings since Sharpe
+    is order-invariant), bootstrap resampling with replacement generates genuinely
+    different PnL distributions and correctly handles the signal-vs-noise question.
 
     Args:
         pnls:           per-trade PnL values (from TradeRecord.pnl_pts)
-        n_permutations: shuffle count (default 1000)
+        n_permutations: bootstrap sample count (default 1000)
         seed:           RNG seed for reproducibility
 
     Returns:
-        float in [0, 1]; p < 0.05 passes
+        float in [0, 1]; p < 0.05 passes (Sharpe consistently positive)
     """
     if len(pnls) < 2:
         return 1.0   # inconclusive → conservative fail
-    observed = _sharpe(pnls)
+    n = len(pnls)
     rng = random.Random(seed)
-    buf = list(pnls)
-    beats = 0
+    non_positive = 0
     for _ in range(n_permutations):
-        rng.shuffle(buf)
-        if _sharpe(buf) > observed:   # strict > — ties don't count
-            beats += 1
-    return beats / n_permutations
+        sample = [rng.choice(pnls) for _ in range(n)]
+        if _sharpe(sample) <= 0:
+            non_positive += 1
+    return non_positive / n_permutations
 
 
 def kupiec_pof(pnls: list[float], confidence: float = 0.95) -> float:
     """
     Kupiec Proportion of Failures test — one-sided at the stated confidence level.
 
-    Tests whether the observed loss-exceedance rate exceeds the expected rate
-    (1 - confidence). One-sided: auto-passes when p_hat <= alpha (fewer losses
-    than expected is good news, not a rejection reason).
+    Uses a fixed VaR threshold at zero: any trade with PnL < 0 is an exceedance.
+    This tests whether the strategy's loss rate is consistent with (1 - confidence).
 
-    Returns 1.0 (auto-pass) when n < 10 (inconclusive) or p_hat <= alpha.
+    At 95% confidence: at most 5% of trades should lose money.
+
+    One-sided: auto-passes when observed loss rate <= expected rate.
+    Returns 1.0 (auto-pass) when n < 10 (inconclusive).
 
     Args:
         pnls:       per-trade PnL values
@@ -82,16 +84,13 @@ def kupiec_pof(pnls: list[float], confidence: float = 0.95) -> float:
     if n < 10:
         return 1.0   # too few trades — inconclusive, auto-pass
 
-    alpha = 1.0 - confidence                         # expected exceedance rate = 0.05
-    sorted_pnls = sorted(pnls)
-    var_threshold = sorted_pnls[max(0, int(n * alpha) - 1)]   # 5th-percentile PnL
-
-    x = sum(1 for p in pnls if p < var_threshold)   # observed exceedances
+    alpha = 1.0 - confidence          # expected loss rate = 0.05
+    x = sum(1 for p in pnls if p < 0)  # count trades where we lost money
     p_hat = x / n
 
-    # One-sided: only test if observed rate EXCEEDS expected rate
+    # One-sided: only test if observed loss rate EXCEEDS expected rate
     if p_hat <= alpha:
-        return 1.0   # fewer losses than expected → don't reject
+        return 1.0   # loss rate within tolerance → don't reject
 
     # Kupiec LR statistic: -2 * log(L0 / L1)
     if x == n:
